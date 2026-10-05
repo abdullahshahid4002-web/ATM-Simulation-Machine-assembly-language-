@@ -1,0 +1,297 @@
+
+ORG 100h
+
+JMP START
+ =========================================
+
+WELCOME_MSG DB 13,10
+            DB '================================',13,10
+            DB '        WELCOME TO ATM',13,10
+            DB '================================',13,10,'$'
+
+PIN_MSG     DB 13,10,'Enter PIN: $'
+WRONG_PIN   DB 13,10,'Incorrect PIN!$'
+
+BLOCKED_MSG DB 13,10
+            DB 'Too many incorrect attempts.',13,10
+            DB 'Access denied.$'
+
+MENU_MSG    DB 13,10,13,10
+            DB '========== ATM MENU ==========',13,10
+            DB '1. Check Balance',13,10
+            DB '2. Deposit Money',13,10
+            DB '3. Withdraw Money',13,10
+            DB '4. Exit',13,10
+            DB '==============================',13,10
+            DB 'Enter your choice: $'
+
+BALANCE_MSG DB 13,10,'Current Balance: $'
+DEPOSIT_MSG DB 13,10,'Enter amount to deposit: $'
+WITHDRAW_MSG DB 13,10,'Enter amount to withdraw: $'
+
+DEPOSIT_DONE DB 13,10,'Amount deposited successfully.$'
+WITHDRAW_DONE DB 13,10,'Amount withdrawn successfully.$'
+INSUFFICIENT DB 13,10,'Insufficient balance!$'
+
+PRESS_KEY DB 13,10,13,10
+          DB 'Press any key to continue...$'
+
+GOODBYE DB 13,10,13,10
+        DB 'Thank you for using our ATM!',13,10,'$'
+
+PIN DB '1234'
+
+BALANCE DW 5000
+AMOUNT  DW ?
+
+PIN_BUFFER DB 4 DUP(?)
+
+
+START:
+
+    MOV AX, CS
+    MOV DS, AX
+
+    LEA DX, WELCOME_MSG
+    MOV AH, 09H
+    INT 21H
+
+
+    MOV CX, 3              
+
+PIN_ATTEMPT:
+
+    LEA DX, PIN_MSG
+    MOV AH, 09H
+    INT 21H
+
+    MOV AH, 01H
+    INT 21H
+    MOV PIN_BUFFER[0], AL
+
+    MOV AH, 01H
+    INT 21H
+    MOV PIN_BUFFER[1], AL
+
+    MOV AH, 01H
+    INT 21H
+    MOV PIN_BUFFER[2], AL
+
+    MOV AH, 01H
+    INT 21H
+    MOV PIN_BUFFER[3], AL
+
+    MOV AL, PIN_BUFFER[0]
+    CMP AL, PIN[0]
+    JNE WRONG
+
+    MOV AL, PIN_BUFFER[1]
+    CMP AL, PIN[1]
+    JNE WRONG
+
+   
+    MOV AL, PIN_BUFFER[2]
+    CMP AL, PIN[2]
+    JNE WRONG
+
+    
+    MOV AL, PIN_BUFFER[3]
+    CMP AL, PIN[3]
+    JNE WRONG
+
+    
+    JMP ATM_MENU
+
+
+WRONG:
+
+    LEA DX, WRONG_PIN
+    MOV AH, 09H
+    INT 21H
+
+    LOOP PIN_ATTEMPT
+
+    LEA DX, BLOCKED_MSG
+    MOV AH, 09H
+    INT 21H
+
+    JMP EXIT
+
+
+ATM_MENU:
+
+    LEA DX, MENU_MSG
+    MOV AH, 09H
+    INT 21H
+
+    MOV AH, 01H
+    INT 21H
+
+    CMP AL, '1'
+    JE CHECK_BALANCE
+
+    CMP AL, '2'
+    JE DEPOSIT
+
+    CMP AL, '3'
+    JE WITHDRAW
+
+    CMP AL, '4'
+    JE EXIT
+
+    JMP ATM_MENU
+
+
+CHECK_BALANCE:
+
+    LEA DX, BALANCE_MSG
+    MOV AH, 09H
+    INT 21H
+
+    MOV AX, BALANCE
+    CALL PRINT_NUMBER
+
+    LEA DX, PRESS_KEY
+    MOV AH, 09H
+    INT 21H
+
+    MOV AH, 01H
+    INT 21H
+
+    JMP ATM_MENU
+
+
+DEPOSIT:
+
+    LEA DX, DEPOSIT_MSG
+    MOV AH, 09H
+    INT 21H
+
+    CALL READ_NUMBER
+    MOV AMOUNT, AX
+
+    MOV AX, BALANCE
+    ADD AX, AMOUNT
+    MOV BALANCE, AX
+
+    LEA DX, DEPOSIT_DONE
+    MOV AH, 09H
+    INT 21H
+
+    JMP ATM_MENU
+
+
+WITHDRAW:
+
+    LEA DX, WITHDRAW_MSG
+    MOV AH, 09H
+    INT 21H
+
+    CALL READ_NUMBER
+    MOV AMOUNT, AX
+                    
+    MOV AX, BALANCE
+    CMP AX, AMOUNT
+    JB NOT_ENOUGH
+
+    SUB AX, AMOUNT
+    MOV BALANCE, AX
+
+    LEA DX, WITHDRAW_DONE
+    MOV AH, 09H
+    INT 21H
+
+    JMP ATM_MENU
+
+
+NOT_ENOUGH:
+
+    LEA DX, INSUFFICIENT
+    MOV AH, 09H
+    INT 21H
+
+    JMP ATM_MENU
+
+
+READ_NUMBER PROC
+
+    XOR BX, BX
+
+READ_LOOP:
+
+    MOV AH, 01H
+    INT 21H
+
+    CMP AL, 13
+    JE READ_DONE
+
+    SUB AL, '0'
+
+    XOR AH, AH
+
+    PUSH AX
+
+    MOV AX, BX
+    MOV DX, 10
+    MUL DX
+    MOV BX, AX
+
+    POP AX
+    ADD BX, AX
+
+    JMP READ_LOOP
+
+
+READ_DONE:
+
+    MOV AX, BX
+    RET
+
+READ_NUMBER ENDP
+
+
+PRINT_NUMBER PROC
+
+    XOR CX, CX
+    MOV BX, 10
+
+CONVERT:
+
+    XOR DX, DX
+    DIV BX
+
+    PUSH DX
+    INC CX
+
+    CMP AX, 0
+    JNE CONVERT
+
+
+DISPLAY:
+
+    POP DX
+
+    ADD DL, '0'
+
+    MOV AH, 02H
+    INT 21H
+
+    LOOP DISPLAY
+
+    RET
+
+PRINT_NUMBER ENDP
+
+
+EXIT:
+
+    LEA DX, GOODBYE
+    MOV AH, 09H
+    INT 21H
+
+    MOV AH, 4CH
+    INT 21H
+
+END
+
+ret
